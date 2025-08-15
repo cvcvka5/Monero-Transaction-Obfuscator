@@ -258,10 +258,13 @@ class _ActiveBrowserWallet:
         
         return balance
 
-    async def send(self, amount: float, to_address: str, priority: typing.Literal["low", "medium", "hight", "very high"]):
+    async def send(self, amount: float, to_address: str, priority: typing.Literal["low", "medium", "hight", "very high"]) -> None:
         """Send Monero to another address."""
         await self._set_priority(priority=priority)
+        
+        await self._page.fill("td > div > input", "")
         await self._page.type("td > div > input", str(amount))
+        await self._page.fill("div.contactPicker_Lite > input", "")
         await self._page.type("div.contactPicker_Lite > input", to_address)
         await self._page.click("#rightBarButtonHolderView > div")
 

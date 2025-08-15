@@ -12,13 +12,26 @@ class Wallet:
     with MyMonero's browser-based wallet UI via Playwright.
 
     Attributes:
-        _browser: Playwright Browser instance for session management.
-        _playwright: Playwright instance for browser automation.
+        _p: Playwright instance used for launching the browser.
+        _b: Playwright Browser instance for session management.
         _mnemonic (Mnemonic): The wallet's mnemonic phrase object.
+        _address (str): Wallet's Monero address.
+        _viewKey (str): Wallet's secret view key.
+        _spendKey (str): Wallet's secret spend key.
     """
 
     def __init__(self, mnemonic: Mnemonic, address: str, secretViewKey: str, secretSpendKey: str):
-        """Initialize a Wallet with a mnemonic phrase."""
+        """Initialize a Wallet with a mnemonic phrase, address, and keys.
+
+        Args:
+            mnemonic (Mnemonic): The wallet's mnemonic phrase.
+            address (str): Wallet's public Monero address.
+            secretViewKey (str): Secret view key associated with the wallet.
+            secretSpendKey (str): Secret spend key associated with the wallet.
+
+        Raises:
+            RuntimeError: If mnemonic is not an instance of Mnemonic.
+        """
         if type(mnemonic) != Mnemonic:
             raise RuntimeError("Mnemonic key not passed into wallet.")
         self._p = None
@@ -30,7 +43,16 @@ class Wallet:
 
     @staticmethod
     async def generateBulk(outfp: str, max_workers: int = 5, total: int = 50) -> list[Wallet]:
-        """Generate multiple wallets concurrently and save mnemonics to a file."""
+        """Generate multiple wallets concurrently and save mnemonics to a file.
+
+        Args:
+            outfp (str): Path to output file for storing wallet information.
+            max_workers (int, optional): Maximum number of concurrent workers. Defaults to 5.
+            total (int, optional): Total number of wallets to generate. Defaults to 50.
+
+        Returns:
+            list[Wallet]: A list of generated Wallet instances.
+        """
         semaphore = asyncio.Semaphore(max_workers)
         wallets = []
         file_lock = asyncio.Lock()
@@ -55,7 +77,6 @@ class Wallet:
                     with open(outfp, "a") as f:
                         f.write(f"{wallet.mnemonic} | {wallet.address} | {wallet.secretViewKey} | {wallet.secretSpendKey}\n")
 
-
         tasks = [asyncio.create_task(worker()) for _ in range(total)]
         await asyncio.gather(*tasks)
         
@@ -66,7 +87,14 @@ class Wallet:
 
     @staticmethod
     def loadWallets(fp: str) -> list[Wallet]:
-        """Load wallets from a file containing mnemonic phrases."""
+        """Load wallets from a file containing mnemonic phrases.
+
+        Args:
+            fp (str): Path to the file containing wallet mnemonics and keys.
+
+        Returns:
+            list[Wallet]: A list of Wallet instances loaded from file.
+        """
         wallets = []
         with open(fp, "r") as f:
             for line in f.readlines():
@@ -79,6 +107,18 @@ class Wallet:
 
     @staticmethod
     async def _generateWalletWithRetry(context, max_retries=5):
+        """Attempt to generate a wallet with retries on failure.
+
+        Args:
+            context: Playwright browser context.
+            max_retries (int, optional): Maximum number of retries. Defaults to 5.
+
+        Returns:
+            Wallet: A successfully generated wallet.
+
+        Raises:
+            RuntimeError: If wallet generation fails after max_retries.
+        """
         for attempt in range(max_retries):
             try:
                 page = await context.new_page()
@@ -90,10 +130,16 @@ class Wallet:
                 await asyncio.sleep(3 + random.uniform(0, 2))
         raise RuntimeError("Failed to generate wallet after several retries.")
 
-
     @staticmethod
     async def generateNew(page: Page = None):
-        """Generate a new wallet using MyMonero's online wallet."""
+        """Generate a new wallet using MyMonero's online wallet UI.
+
+        Args:
+            page (Page, optional): Playwright page object. If None, a new browser will be launched.
+
+        Returns:
+            Wallet: A newly generated Wallet instance.
+        """
         p = None
         b = None
         if page == None:
@@ -125,7 +171,6 @@ class Wallet:
         await page.click("#rightBarButtonHolderView > div")
         await asyncio.sleep(random.uniform(0.5, 1.5))
         
-        
         await page.click("div.utility:has(div.walletIcon)")
         await page.click("a.__infoDisclosing_doNotUseForDisclosureToggling")
 
@@ -151,25 +196,32 @@ class Wallet:
         
         return wallet
 
-
     @property
     def mnemonic(self) -> str:
+        """Return the wallet's mnemonic phrase as a string."""
         return self._mnemonic.getRawWords()
 
     @property
     def address(self) -> str:
+        """Return the wallet's Monero address."""
         return self._address
 
     @property
     def secretViewKey(self) -> str:
+        """Return the wallet's secret view key."""
         return self._viewKey
 
     @property
     def secretSpendKey(self) -> str:
+        """Return the wallet's secret spend key."""
         return self._spendKey
 
     async def __aenter__(self) -> _ActiveBrowserWallet:
-        """Log into MyMonero using the wallet's mnemonic."""
+        """Log into MyMonero using the wallet's mnemonic.
+
+        Returns:
+            _ActiveBrowserWallet: An active browser wallet session.
+        """
         self._p = await async_playwright().start()
         self._b = await self._p.chromium.launch(headless=True)
 
@@ -204,6 +256,7 @@ class Wallet:
         return _ActiveBrowserWallet(page, self._mnemonic, self.address, self.secretViewKey, self.secretSpendKey)
 
     async def __aexit__(self, exc_type, exc_value, traceback):
+        """Close the Playwright browser session."""
         if self._b:
             await self._b.close()
             self._b = None
@@ -212,42 +265,63 @@ class Wallet:
             self._p = None
 
     def __str__(self):
+        """Return a shortened string representation of the wallet."""
         return f"Wallet('{' '.join(self._mnemonic.getWords()[:3])}'...)')"
 
 
 class _ActiveBrowserWallet:
-    """Represents an active browser session for a loaded Monero wallet."""
+    """Represents an active browser session for a loaded Monero wallet.
+
+    Attributes:
+        _page (Page): Playwright page object for browser interaction.
+        _mnemonic (Mnemonic): Wallet's mnemonic phrase object.
+        _address (str): Wallet's Monero address.
+        _viewkey (str): Wallet's secret view key.
+        _spendkey (str): Wallet's secret spend key.
+    """
 
     def __init__(self, page: Page, mnemonic: Mnemonic, address: str, secretviewkey: str, secretspendkey: str):
+        """Initialize an active browser wallet session.
+
+        Args:
+            page (Page): Playwright page object.
+            mnemonic (Mnemonic): Wallet's mnemonic phrase.
+            address (str): Wallet's Monero address.
+            secretviewkey (str): Wallet's secret view key.
+            secretspendkey (str): Wallet's secret spend key.
+        """
         self._page = page
         self._mnemonic = mnemonic
         self._address = address
         self._viewkey = secretviewkey
         self._spendkey = secretspendkey
 
-
     @property
     def address(self) -> str:
-        """Wallet's primary Monero address."""
+        """Return the wallet's Monero address."""
         return self._address
 
     @property
     def secretViewKey(self) -> str:
-        """Wallet's secret view key."""
+        """Return the wallet's secret view key."""
         return self._viewkey
 
     @property
     def secretSpendKey(self) -> str:
-        """Wallet's secret spend key."""
+        """Return the wallet's secret spend key."""
         return self._spendkey
 
     @property
     def secretMnemonic(self) -> Mnemonic:
-        """Wallet's mnemonic phrase."""
+        """Return the wallet's mnemonic phrase."""
         return self._mnemonic
 
     async def getBalance(self) -> float:
-        """Retrieve the current XMR balance."""
+        """Retrieve the current XMR balance from the wallet UI.
+
+        Returns:
+            float: The wallet's balance in XMR.
+        """
         balance = None
         for _ in range(50):
             try:
@@ -259,7 +333,16 @@ class _ActiveBrowserWallet:
         return balance
 
     async def send(self, amount: float, to_address: str, priority: typing.Literal["low", "medium", "hight", "very high"]) -> None:
-        """Send Monero to another address."""
+        """Send Monero to another address.
+
+        Args:
+            amount (float): Amount of XMR to send.
+            to_address (str): Destination Monero address.
+            priority (Literal): Transaction priority ("low", "medium", "high", "very high").
+
+        Raises:
+            TransactionException: If the transaction fails or returns an error message.
+        """
         await self._set_priority(priority=priority)
         
         await self._page.fill("td > div > input", "")
@@ -274,7 +357,14 @@ class _ActiveBrowserWallet:
             raise TransactionException(errmsg)
 
     async def getTransferFee(self, priority: typing.Literal["low", "medium", "hight", "very high"]) -> float:
-        """Get the estimated fee for a transaction at a given priority."""
+        """Get the estimated fee for a transaction at a given priority.
+
+        Args:
+            priority (Literal): Transaction priority ("low", "medium", "high", "very high").
+
+        Returns:
+            float: Estimated transaction fee in XMR.
+        """
         fee = None
         for _ in range(50):
             await self._set_priority(priority=priority)
@@ -288,7 +378,11 @@ class _ActiveBrowserWallet:
         return fee
 
     async def _set_priority(self, priority: typing.Literal["low", "medium", "hight", "very high"]) -> None:
-        """Set transaction priority in the UI."""
+        """Set transaction priority in the UI.
+
+        Args:
+            priority (Literal): Transaction priority ("low", "medium", "high", "very high").
+        """
         match priority.lower():
             case "low":
                 await self._page.select_option("div:nth-child(6) select", value="1")
@@ -300,6 +394,7 @@ class _ActiveBrowserWallet:
                 await self._page.select_option("div:nth-child(6) select", value="4")
 
     def __str__(self) -> str:
+        """Return a string representation of the active wallet."""
         return f"ActiveWallet({self.address})"
     
 

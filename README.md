@@ -1,4 +1,4 @@
-# Monero Wallet Mixer
+# Monero Transaction Obfuscator
 
 This project provides strategies to sequentially transfer Monero (XMR) through multiple wallets to obfuscate the source of funds. It uses **Playwright** to interact with [MyMonero](https://wallet.mymonero.com) browser wallets.
 

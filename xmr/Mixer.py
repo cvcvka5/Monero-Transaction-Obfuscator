@@ -7,7 +7,13 @@ import asyncio
 
 @dataclass
 class WalletChain:
-    """Represents a transfer path from a source wallet, through optional middlemen, to a destination wallet."""
+    """Represents a chain of wallets used for mixing transactions.
+
+    Attributes:
+        from_wallet (Wallet): The source wallet from which funds originate.
+        middlemen (list[Wallet]): A list of intermediate wallets that act as relays in the transfer path.
+        to_wallet (Wallet): The destination wallet that ultimately receives the funds.
+    """
     from_wallet: Wallet
     middlemen: list[Wallet]
     to_wallet: Wallet
@@ -25,12 +31,29 @@ class DominoMixer:
     """
     
     def __init__(self, wallet_chain: WalletChain):
+        """Initialize the DominoMixer with a given wallet chain.
+
+        Args:
+            wallet_chain (WalletChain): The chain of wallets to be used in the mixing process.
+        """
         wallet_chain.middlemen = wallet_chain.middlemen.copy()
         random.shuffle(wallet_chain.middlemen)
         self._chain = wallet_chain
     
     
     async def start(self, amount: float, max_attempts: int = 5) -> None:
+        """Start the domino mixing process.
+
+        Sequentially transfers funds through each wallet in the chain until reaching the destination.
+
+        Args:
+            amount (float): The amount of XMR to send through the chain.
+            max_attempts (int): The maximum number of retry attempts per transfer.
+
+        Raises:
+            TransactionException: If a wallet does not have enough balance, or 
+                                  if sending fails after all retry attempts.
+        """
         path = self._chain.middlemen + [self._chain.to_wallet]
         current_wallet = self._chain.from_wallet
         print(f"Domino mixing will take high-approx {self.approxMinutes}mins.")
@@ -61,21 +84,53 @@ class DominoMixer:
     
     @property
     def transfersN(self) -> int:
+        """Return the number of transfers that will occur.
+
+        Returns:
+            int: The number of transfers including the final one to the destination wallet.
+        """
         return 1+len(self._chain.middlemen)
     
     @property
     def approxMinutes(self) -> int:
+        """Estimate the total time required for the mixing process.
+
+        Returns:
+            int: Approximate time in minutes for all transfers to complete.
+        """
         return self.transfersN*TRANSFER_APPROX_MINS
 
 
 
 class LeafwayMixer:
+    """Monero mixer that splits funds among multiple middleman wallets and then consolidates them back.
+
+    The process first sends portions of the total amount to each middleman, waits for confirmation, 
+    and then transfers all funds from the middlemen to the destination wallet.
+    """
     def __init__(self, wallet_chain: WalletChain):
+        """Initialize the LeafwayMixer with a given wallet chain.
+
+        Args:
+            wallet_chain (WalletChain): The chain of wallets to be used in the mixing process.
+        """
         wallet_chain.middlemen = wallet_chain.middlemen.copy()
         random.shuffle(wallet_chain.middlemen)
         self._chain = wallet_chain
 
     async def start(self, amount: float, max_attempts: int = 5) -> None:
+        """Start the leafway mixing process.
+
+        Splits the amount across multiple middleman wallets, then later consolidates the balances 
+        from those middlemen into the final destination wallet.
+
+        Args:
+            amount (float): The total amount of XMR to mix through middlemen.
+            max_attempts (int): The maximum number of retry attempts per transfer.
+
+        Raises:
+            TransactionException: If the source wallet does not have enough balance for transfers + fees.
+        """
         print(f"Leafway mixing will take high-approx {self.approxMinutes}mins.")
         
         async with self._chain.from_wallet as from_wallet:
@@ -122,12 +177,21 @@ class LeafwayMixer:
 
     @property
     def transfersN(self) -> int:
+        """Return the total number of transfers in the mixing process.
+
+        Returns:
+            int: Twice the number of middlemen (one for splitting, one for consolidating).
+        """
         return len(self._chain.middlemen)*2
 
     @property
     def approxMinutes(self) -> int:
+        """Estimate the total time required for the mixing process.
+
+        Returns:
+            int: Approximate time in minutes for all transfers, including delays between middlemen transfers.
+        """
         return TRANSFER_APPROX_MINS + len(self._chain.middlemen) * 15
 
 
 __all__ = [ "WalletChain", "DominoMixer"]
-        

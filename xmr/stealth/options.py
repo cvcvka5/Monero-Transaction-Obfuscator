@@ -33,17 +33,6 @@ USER_AGENTS = [
 ]
 
 
-def get_humanlike_session() -> requests.Session:
-    sess = requests.Session()
-    sess.headers.update({"User-Agent": get_ua()})
-    sess.headers.update({
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
-        "Referer": "https://wallet.mymonero.com/",
-    })
-    return sess
 
 def get_ua():
     return random.choice(USER_AGENTS)

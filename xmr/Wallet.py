@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from xmr.Mnemonic import Mnemonic
-from xmr.stealth.options import get_ua, get_viewport, get_humanlike_session
+from xmr.stealth.options import get_ua, get_viewport
 from playwright.async_api import async_playwright, Page
 from playwright_stealth import Stealth
 import asyncio
@@ -14,7 +14,6 @@ class Wallet:
     def __init__(self, mnemonic: Mnemonic):#, address: str, viewkey: str):
         self._browser = None
         self._playwright = None
-        self._sess = get_humanlike_session()
         
         if type(mnemonic) != Mnemonic:
             raise RuntimeError("Mnemonic key not passed into wallet.")

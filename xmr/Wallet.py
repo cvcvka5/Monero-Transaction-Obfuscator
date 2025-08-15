@@ -74,7 +74,7 @@ class Wallet:
                     continue
                 raw_mnemonic, *args = line.split("|")
                 
-                wallets.append(Wallet(Mnemonic(raw_mnemonic), *args))
+                wallets.append(Wallet(Mnemonic(raw_mnemonic.strip()), *[arg.strip() for arg in args]))
         return wallets
 
     @staticmethod
@@ -99,7 +99,7 @@ class Wallet:
         if page == None:
             p = await async_playwright().start()
 
-            b = await p.chromium.launch(headless=False)
+            b = await p.chromium.launch(headless=True)
 
             context = await b.new_context(
                 user_agent=get_ua(),
@@ -186,15 +186,30 @@ class Wallet:
         await page.type("textarea.existing_key", self.mnemonic)
         await page.click("#rightBarButtonHolderView > div")
 
-        return await _ActiveBrowserWallet.create(page, self._mnemonic)
+        send_tab_clickable = False
+        button = None
+        for _ in range(50):
+            button = await page.wait_for_selector("div#tabButton-send", state="visible")
+            if "opacity: 1;" in (await button.get_attribute("style")):
+                send_tab_clickable = True
+                break
+                
+            await asyncio.sleep(0.1)
+        
+        if not send_tab_clickable:
+            raise RuntimeError("An unknown error occurred.")
+        
+        await button.click()
+
+        return _ActiveBrowserWallet(page, self._mnemonic, self.address, self.secretViewKey, self.secretSpendKey)
 
     async def __aexit__(self, exc_type, exc_value, traceback):
-        if self._browser:
-            await self._browser.close()
-            self._browser = None
-        if self._playwright:
-            await self._playwright.stop()
-            self._playwright = None
+        if self._b:
+            await self._b.close()
+            self._b = None
+        if self._p:
+            await self._p.stop()
+            self._p = None
 
     def __str__(self):
         return f"Wallet('{' '.join(self._mnemonic.getWords()[:3])}'...)')"
@@ -233,9 +248,15 @@ class _ActiveBrowserWallet:
 
     async def getBalance(self) -> float:
         """Retrieve the current XMR balance."""
-        await self._page.click("div#tabButton-send")
-        return float((await (await self._page.wait_for_selector(
-            "div.selectionDisplayCellView > div.description-label")).inner_text()).strip(" XMR"))
+        balance = None
+        for _ in range(50):
+            try:
+                balance = float((await (await self._page.wait_for_selector("div.selectionDisplayCellView > div.description-label")).inner_text()).strip(" XMR"))
+                break
+            except ValueError:
+                await asyncio.sleep(0.1)
+        
+        return balance
 
     async def send(self, amount: float, to_address: str, priority: typing.Literal["low", "medium", "hight", "very high"]):
         """Send Monero to another address."""
@@ -251,10 +272,17 @@ class _ActiveBrowserWallet:
 
     async def getTransferFee(self, priority: typing.Literal["low", "medium", "hight", "very high"]) -> float:
         """Get the estimated fee for a transaction at a given priority."""
-        await self._set_priority(priority=priority)
-        fee = await (await self._page.wait_for_selector(
-            "#stack-view-stage-view > div > div:nth-child(2) > table > tr > td > div > div:nth-child(8) > span")).inner_text()
-        return float(fee.lower().strip(" xmr est. fee").strip("+ "))
+        fee = None
+        for _ in range(50):
+            await self._set_priority(priority=priority)
+            fee = await (await self._page.wait_for_selector(
+                "#stack-view-stage-view > div > div:nth-child(2) > table > tr > td > div > div:nth-child(8) > span")).inner_text()
+            try:
+                fee = float(fee.lower().strip(" xmr est. fee").strip("+ "))
+                break
+            except ValueError:
+                await asyncio.sleep(0.1)
+        return fee
 
     async def _set_priority(self, priority: typing.Literal["low", "medium", "hight", "very high"]) -> None:
         """Set transaction priority in the UI."""

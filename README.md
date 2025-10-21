@@ -15,8 +15,15 @@ This project provides strategies to sequentially transfer Monero (XMR) through m
 * **Mixing Strategies**
 
   * `DominoMixer`: Transfers funds sequentially through middleman wallets to the destination.
+    <p></p>
+    <img src="domino-diagram.svg" width=500>
+    <p></p>
+    <br>
   * `LeafwayMixer`: Splits the amount across multiple middlemen, then consolidates funds to the destination wallet.
-
+    <p></p>
+    <img src="leafway-diagram.svg" width=500>
+    <p></p>
+    <br>
 * **Retry Logic**: Automatically retries failed transactions.
 
 * **Customizable Transfer Priorities and Timing**.

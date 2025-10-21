@@ -23,10 +23,15 @@ This project provides strategies to sequentially transfer Monero (XMR) through m
     <p></p>
     <img src="leafway-diagram.svg" width=500>
     <p></p>
-    <br>
+
 * **Retry Logic**: Automatically retries failed transactions.
 
 * **Customizable Transfer Priorities and Timing**.
+
+## Fee Chart
+
+<img src="fee-chart.png" width=500>
+<br>
 
 ## Installation
 

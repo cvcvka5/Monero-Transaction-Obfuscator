@@ -2,6 +2,10 @@
 
 This project provides strategies to sequentially transfer Monero (XMR) through multiple wallets to obfuscate the source of funds. It uses **Playwright** to interact with [MyMonero](https://wallet.mymonero.com) browser wallets.
 
+Note: This project is a proof‑of‑concept intended for research and experimentation.
+Resource usage is intentionally non‑optimized to discourage high‑volume automation.
+If you wish to adapt or optimize it for personal experimentation, feel free to fork the repository.
+
 ## Features
 
 * **Wallet Generation & Management**
